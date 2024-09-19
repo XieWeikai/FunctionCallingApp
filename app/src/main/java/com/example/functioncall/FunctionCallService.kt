@@ -29,7 +29,7 @@ class FunctionCallService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        functions = Functions(applicationContext)
+        functions = Functions(null) // TODO: here we change the code of Functions; null can not work here
 
         createNotificationChannel()
         startForegroundService()

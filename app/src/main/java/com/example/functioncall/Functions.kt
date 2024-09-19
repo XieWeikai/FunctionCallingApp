@@ -2,8 +2,10 @@ package com.example.functioncall
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.AlarmClock
 import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.memberFunctions
@@ -13,6 +15,10 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
 import kotlin.reflect.KType
 import kotlin.reflect.jvm.isAccessible
+import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.registerForActivityResult
+import java.util.concurrent.CountDownLatch
 
 /**
  * Data class representing the structure of the JSON input for function execution.
@@ -42,7 +48,7 @@ data class Result(
  * The Functions class containing various methods and the execute method.
  * It dynamically invokes functions based on JSON input.
  */
-class Functions(private var context: Context?) {
+class Functions(private var context: ComponentActivity?, private var outerFunctionsMap: Map<String, KFunction<*>>?=null) {
 
     // Initialize Jackson ObjectMapper with Kotlin module
     private val objectMapper = jacksonObjectMapper()
@@ -75,7 +81,7 @@ class Functions(private var context: Context?) {
 
             // Retrieve the function by name
             val function: KFunction<*> = functionsMap[functionCall.name]
-                ?: return Result(
+                ?: outerFunctionsMap?.get(functionCall.name) ?:return Result(
                     state = "error",
                     message = "Function '${functionCall.name}' not found.",
                     return_type = null,
@@ -88,8 +94,13 @@ class Functions(private var context: Context?) {
             // Prepare the arguments for the function
             val args = prepareArguments(function, functionCall.arguments)
 
-            // Invoke the function with the prepared arguments
-            val returnValue = function.call(this, *args.toTypedArray())
+            val returnValue: Any?
+            if (functionCall.name in functionsMap) {
+                // Invoke the function with the prepared arguments
+                returnValue = function.call(this, *args.toTypedArray())
+            }else{
+                returnValue = function.call(context, *args.toTypedArray())
+            }
 
             // Determine the return type
             val returnType = function.returnType.classifier as? KClass<*>
@@ -103,6 +114,7 @@ class Functions(private var context: Context?) {
             )
         } catch (e: Exception) {
             // Handle exceptions such as JSON parsing errors, missing functions, etc.
+            e.printStackTrace()
             Result(
                 state = "error",
                 message = e.message,
