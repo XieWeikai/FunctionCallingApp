@@ -1,11 +1,8 @@
 package com.example.functioncall
 
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.AlarmClock
 import android.util.Log
-import androidx.activity.result.contract.ActivityResultContracts
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.memberFunctions
@@ -16,9 +13,7 @@ import kotlin.reflect.KParameter
 import kotlin.reflect.KType
 import kotlin.reflect.jvm.isAccessible
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContract
-import androidx.activity.result.registerForActivityResult
-import java.util.concurrent.CountDownLatch
+import kotlin.reflect.full.instanceParameter
 
 /**
  * Data class representing the structure of the JSON input for function execution.
@@ -74,11 +69,8 @@ class Functions(private var context: ComponentActivity?, private var outerFuncti
      * @param json The JSON string specifying the function to execute and its arguments
      * @return A Result object containing the execution outcome
      */
-    fun execute(json: String): Result {
+    fun execute(functionCall: FunctionCall): Result {
         return try {
-            // Parse the JSON string into FunctionCall data class
-            val functionCall: FunctionCall = objectMapper.readValue(json)
-
             // Retrieve the function by name
             val function: KFunction<*> = functionsMap[functionCall.name]
                 ?: outerFunctionsMap?.get(functionCall.name) ?:return Result(
@@ -95,11 +87,14 @@ class Functions(private var context: ComponentActivity?, private var outerFuncti
             val args = prepareArguments(function, functionCall.arguments)
 
             val returnValue: Any?
+            val instanseParam = function.instanceParameter!!
             if (functionCall.name in functionsMap) {
                 // Invoke the function with the prepared arguments
-                returnValue = function.call(this, *args.toTypedArray())
+                returnValue = function.callBy(args + (instanseParam to this))
+//                returnValue = function.call(this, *args.toTypedArray())
             }else{
-                returnValue = function.call(context, *args.toTypedArray())
+                returnValue = function.callBy(args + (instanseParam to context))
+//                returnValue = function.call(context, *args.toTypedArray())
             }
 
             // Determine the return type
@@ -131,16 +126,28 @@ class Functions(private var context: ComponentActivity?, private var outerFuncti
      * @param providedArgs The map of argument names to their values from the JSON
      * @return A list of arguments ordered as per the function's parameters
      */
-    private fun prepareArguments(function: KFunction<*>, providedArgs: Map<String, Any>): List<Any?> {
-        return function.parameters
-            .filter { it.kind == KParameter.Kind.VALUE } // Filter out instance and other special parameters
-            .map { param ->
-                val value = providedArgs[param.name]
-                    ?: throw IllegalArgumentException("Missing argument '${param.name}' for function '${function.name}'.")
+    private fun prepareArguments(function: KFunction<*>, providedArgs: Map<String, Any>): Map<KParameter, Any?> {
+        val filteredParam = function.parameters.filter {
+            it.kind == KParameter.Kind.VALUE
+        }
 
-                // Convert the value to the required type
-                convertValue(value, param)
-            }
+        if ( filteredParam.any{!it.isOptional && !providedArgs.containsKey(it.name)} ){
+            throw IllegalArgumentException("no enough arguments provided")
+        }
+
+        return filteredParam.filter { !(it.isOptional && !providedArgs.containsKey(it.name)) }.associateWith { param->
+            providedArgs[param.name]
+        }
+
+//        return function.parameters
+//            .filter { it.kind == KParameter.Kind.VALUE } // Filter out instance and other special parameters
+//            .map { param ->
+//                val value = providedArgs[param.name]
+//                    ?: throw IllegalArgumentException("Missing argument '${param.name}' for function '${function.name}'.")
+//
+//                // Convert the value to the required type
+//                convertValue(value, param)
+//            }
     }
 
     /**
@@ -218,43 +225,81 @@ class Functions(private var context: ComponentActivity?, private var outerFuncti
         println("The total score of $name is $totalScore")
         return totalScore
     }
+
+    fun test(a: Int, b: Int=3, c: Int){
+        println("a: $a, b: $b, c: $c")
+    }
 }
 
 fun testFunction(functions: Functions, task: String){
     val objectMapper = jacksonObjectMapper()
-    val res = functions.execute(task)
+    val taskObj = objectMapper.readValue<FunctionCall>(task)
+    val res = functions.execute(taskObj)
     println(res)
     val json = objectMapper.writeValueAsString(res)
     println("json:\n$json\n\n")
 }
 
 
+
 fun main(){
     val functions = Functions(null)
-    val test1 = """
+
+    val test = """
     {
-        "name": "test1",
+        "name": "test",
         "arguments": {
-            "a": 666
+            "a": 9,
+            "b": 10,
+            "c": 11
         }
-    }
+    }    
     """.trimIndent()
 
     val test2 = """
     {
         "name": "test2",
         "arguments": {
-            "name": "Alice",
-            "score": [1,2,3]
+            "name": "John",
+            "score": [2.4, 1.2, 3]
         }
     }
     """.trimIndent()
 
-    mutableListOf(
-        test1,
-        test2,
-    ).forEach { task ->
-        println("started task:$task:\n")
-        testFunction(functions, task)
-    }
+    listOf(
+        test,
+        test2
+    ).forEach{task-> testFunction(functions, task)}
+
+//    val f: KFunction<*> = Functions::test
+//
+//    println(f.parameters)
+//
+//    functions.test(1, c = 5)
+//
+//    val arg: Map<String, Any> = mapOf(
+//        "a" to 1,
+////        "b" to 8,
+//        "c" to 5
+//    )
+//
+//    val tmp = f.parameters.filter {
+//        it.kind == KParameter.Kind.VALUE
+//    }
+//
+//    if (tmp.any{
+//        !it.isOptional && !arg.containsKey(it.name)
+//    }){
+//        println("argument not enough")
+//        return
+//    }
+//
+//    val prepared = tmp.filter{!(it.isOptional && !arg.containsKey(it.name))}.associateWith { param->
+//        arg[param.name]
+//    }
+//
+//
+//    val instance = f.instanceParameter!!
+//    println(prepared + (instance to functions))
+//    f.callBy(prepared + (instance to functions))
 }

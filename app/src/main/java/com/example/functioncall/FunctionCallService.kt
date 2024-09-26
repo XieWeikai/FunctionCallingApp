@@ -12,6 +12,7 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.IOException
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 
 
 class FunctionCallService : Service() {
@@ -77,11 +78,12 @@ class FunctionCallService : Service() {
                         // 解析请求体，数据将被填充到 files 映射中
                         session.parseBody(files)
                         // 请求体数据通常在 postData 键下
-                        val postData = files["postData"]
-                        Log.d("HTTP Server", "Received call: $postData")
-                        val res = postData?.let { functions.execute(it) }
-                        Log.d("Http Server", "call result: $res")
+                        val jsonStr = files["postData"]
+                        Log.d("HTTP Server", "Received call: $jsonStr")
                         val objectMapper = jacksonObjectMapper()
+                        val functionCall: FunctionCall? = jsonStr?.let { objectMapper.readValue(it) }
+                        val res = functionCall?.let { functions.execute(it) }
+                        Log.d("Http Server", "call result: $res")
                         val jsonRes = objectMapper.writeValueAsString(res)
                         return newFixedLengthResponse(Response.Status.OK, "application/json", jsonRes)
                     } catch (e: IOException) {
