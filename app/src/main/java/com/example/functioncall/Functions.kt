@@ -229,11 +229,19 @@ class Functions(private var context: ComponentActivity?, private var outerFuncti
     fun test(a: Int, b: Int=3, c: Int){
         println("a: $a, b: $b, c: $c")
     }
+
+    fun testMap(data: Map<String, String>){
+        // print key and value
+        data.forEach { (key, value) ->
+            println("$key -> $value")
+        }
+    }
 }
 
 fun testFunction(functions: Functions, task: String){
     val objectMapper = jacksonObjectMapper()
     val taskObj = objectMapper.readValue<FunctionCall>(task)
+    println("taskObj: $taskObj")
     val res = functions.execute(taskObj)
     println(res)
     val json = objectMapper.writeValueAsString(res)
@@ -266,9 +274,23 @@ fun main(){
     }
     """.trimIndent()
 
+    val testMap = """
+    {
+        "name": "testMap",
+        "arguments": {
+        "data": {
+                "a": "1",
+                "b": "2",
+                "c": "3"
+            }
+        }
+    }
+    """.trimIndent()
+
     listOf(
-        test,
-        test2
+//        test,
+//        test2,
+        testMap
     ).forEach{task-> testFunction(functions, task)}
 
 //    val f: KFunction<*> = Functions::test
