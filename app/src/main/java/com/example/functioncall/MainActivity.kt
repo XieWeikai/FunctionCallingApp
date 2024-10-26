@@ -192,6 +192,12 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
         }
 
+        DocumentVecDB.init(this, "api.jsonl")
+        val res = DocumentVecDB.queryDocument("set alarm")
+        for (doc in res) {
+            Log.d("DocumentVecDB", "query result: $doc")
+        }
+
         functions = Functions(this, functionsMap)
         startHttpServer()
     }
