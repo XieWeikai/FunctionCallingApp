@@ -97,6 +97,14 @@ object DocumentVecDB {
         }
     }
 
+    fun reloadDocuments(context: Context, jsonlFileName: String) {
+        // 清空现有的所有文档
+        docBox.removeAll()
+
+        // 从文件重新加载文档
+        loadDocumentsFromAssets(context, jsonlFileName)
+    }
+
     private fun loadDocumentsFromAssets(context: Context, fileName: String) {
         val mapper = jacksonObjectMapper()
         val assetManager = context.assets
